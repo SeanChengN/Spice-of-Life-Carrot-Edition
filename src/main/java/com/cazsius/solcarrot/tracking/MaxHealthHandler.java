@@ -1,13 +1,7 @@
-/*******************************************************************************
- * Special thanks to the Biomes O' Plenty Team, whose open source "Tough as
- * nails" mod taught me to change player's max health. Below is a heavily
- * modified version of their code. 
- ******************************************************************************/
-package com.cazsius.solcarrot.handler;
+package com.cazsius.solcarrot.tracking;
 
 import com.cazsius.solcarrot.SOLCarrot;
 import com.cazsius.solcarrot.SOLCarrotConfig;
-import com.cazsius.solcarrot.lib.ProgressInfo;
 import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.attributes.AttributeModifier;
 import net.minecraft.entity.ai.attributes.IAttributeInstance;
@@ -17,42 +11,48 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent;
 
+import javax.annotation.Nullable;
 import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = SOLCarrot.MOD_ID)
-public class MaxHealthHandler {
+public final class MaxHealthHandler {
 	private static final UUID MILESTONE_HEALTH_MODIFIER_ID = UUID.fromString("b20d3436-0d39-4868-96ab-d0a4856e68c6");
 	
 	@SubscribeEvent
 	public static void onPlayerLogin(PlayerLoggedInEvent event) {
 		EntityPlayer player = event.player;
 		
-		if (!player.world.isRemote) {
-			updateFoodHPModifier(player);
-		}
+		updateFoodHPModifier(player);
 	}
 	
 	@SubscribeEvent
 	public static void onPlayerClone(PlayerEvent.Clone event) {
-		updateHealthModifier(event.getEntityPlayer(), getHealthModifier(event.getOriginal()));
+		AttributeModifier prevModifier = getHealthModifier(event.getOriginal());
+		if (prevModifier == null) return;
+		
+		updateHealthModifier(event.getEntityPlayer(), prevModifier);
 	}
 	
-	public static void updateFoodHPModifier(EntityPlayer player) {
+	/** @return whether or not the player reached a new milestone in this update */
+	public static boolean updateFoodHPModifier(EntityPlayer player) {
+		if (player.world.isRemote) return false;
+		
 		AttributeModifier prevModifier = getHealthModifier(player);
 		
 		int healthPenalty = 2 * (SOLCarrotConfig.baseHearts - 10);
 		
-		int milestonesAchieved = ProgressInfo.getProgressInfo(player).milestonesAchieved;
+		ProgressInfo progressInfo = FoodList.get(player).getProgressInfo();
+		int milestonesAchieved = progressInfo.milestonesAchieved();
 		int addedHealthFromFood = milestonesAchieved * 2 * SOLCarrotConfig.heartsPerMilestone;
 		
 		double totalHealthModifier = healthPenalty + addedHealthFromFood;
 		
 		if (prevModifier == null || prevModifier.getAmount() != totalHealthModifier) {
 			AttributeModifier modifier = new AttributeModifier(
-					MILESTONE_HEALTH_MODIFIER_ID,
-					"Health Gained from Trying New Foods",
-					totalHealthModifier,
-					0
+				MILESTONE_HEALTH_MODIFIER_ID,
+				"Health Gained from Trying New Foods",
+				totalHealthModifier,
+				0
 			);
 			
 			float oldMax = player.getMaxHealth();
@@ -60,9 +60,14 @@ public class MaxHealthHandler {
 			
 			// adjust current health proportionally to increase in max health
 			player.setHealth(player.getHealth() * player.getMaxHealth() / oldMax);
+			
+			return true;
+		} else {
+			return false;
 		}
 	}
 	
+	@Nullable
 	private static AttributeModifier getHealthModifier(EntityPlayer player) {
 		return maxHealthAttribute(player).getModifier(MILESTONE_HEALTH_MODIFIER_ID);
 	}
@@ -76,4 +81,6 @@ public class MaxHealthHandler {
 	private static IAttributeInstance maxHealthAttribute(EntityPlayer player) {
 		return player.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH);
 	}
+	
+	private MaxHealthHandler() {}
 }

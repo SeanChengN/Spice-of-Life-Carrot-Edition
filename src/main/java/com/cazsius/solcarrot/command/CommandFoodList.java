@@ -1,20 +1,22 @@
 package com.cazsius.solcarrot.command;
 
-import com.cazsius.solcarrot.capability.FoodCapability;
 import com.cazsius.solcarrot.lib.Localization;
+import com.cazsius.solcarrot.tracking.FoodList;
 import net.minecraft.command.*;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.*;
 import net.minecraftforge.server.command.CommandTreeBase;
 
-import java.util.Arrays;
-import java.util.Optional;
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
 
 import static com.cazsius.solcarrot.lib.Localization.keyString;
 
-public class CommandFoodList extends CommandTreeBase {
-	
+public final class CommandFoodList extends CommandTreeBase {
 	private static final String name = "foodlist";
 	
 	public CommandFoodList() {
@@ -34,48 +36,67 @@ public class CommandFoodList extends CommandTreeBase {
 	}
 	
 	@Override
-	public int getRequiredPermissionLevel() {
-		return 0;
+	public boolean checkPermission(MinecraftServer server, ICommandSender sender) {
+		return true;
 	}
 	
-	public static abstract class SubCommand extends CommandBase {
-		
+	private static EntityPlayer getPlayerEntity(ICommandSender sender) throws SyntaxErrorException {
+		Entity senderEntity = sender.getCommandSenderEntity();
+		if (!(senderEntity instanceof EntityPlayer)) throw new SyntaxErrorException("commands.generic.player.unspecified");
+		return (EntityPlayer) senderEntity;
+	}
+	
+	public abstract static class SubCommand extends CommandBase {
 		@Override
 		public String getUsage(ICommandSender sender) {
 			return keyString("command", localizationPath("usage"));
 		}
 		
 		@Override
+		public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, @Nullable BlockPos targetPos) {
+			if (args.length < 2) {
+				return getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+			} else {
+				return Collections.emptyList();
+			}
+		}
+		
+		@Override
 		public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException {
-			execute(CommandFoodList.getCommandSenderAsPlayer(sender), args);
+			if (args.length > 1) throw new WrongUsageException(getUsage(sender));
+			
+			EntityPlayer player;
+			if (args.length == 1) {
+				player = getPlayer(server, sender, args[0]);
+				
+				if (!player.equals(sender.getCommandSenderEntity()) && !sender.canUseCommand(2, getName())) {
+					showMessage(sender, Localization.localizedComponent("command", "foodlist.no_permissions"), TextFormatting.RED);
+					return;
+				}
+			} else { // no args
+				player = getPlayerEntity(sender);
+			}
+			
+			execute(sender, player, FoodList.get(player));
 		}
 		
-		void execute(EntityPlayer player, String[] args) {
-			FoodCapability foodCapability = player.getCapability(FoodCapability.FOOD_CAPABILITY, null);
-			assert foodCapability != null;
-			execute(player, foodCapability, args);
-		}
+		abstract void execute(ICommandSender sender, EntityPlayer player, FoodList foodList);
 		
-		void execute(EntityPlayer player, FoodCapability foodCapability, String[] args) {}
-		
-		ITextComponent localizedComponent(String path, Object... args) {
+		final ITextComponent localizedComponent(String path, Object... args) {
 			return Localization.localizedComponent("command", localizationPath(path), args);
 		}
 		
-		ITextComponent localizedQuantityComponent(String path, int number) {
+		final ITextComponent localizedQuantityComponent(String path, int number) {
 			return Localization.localizedQuantityComponent("command", localizationPath(path), number);
 		}
 		
-		static void showMessage(EntityPlayer player, ITextComponent... message) {
-			Optional<ITextComponent> combinedMessage = Arrays.stream(message)
-					.reduce((acc, next) -> acc.appendText("\n").appendSibling(next));
-			assert combinedMessage.isPresent(); // at least one message to send
-			
-			ITextComponent formatting = new TextComponentString(TextFormatting.DARK_AQUA.toString());
-			player.sendStatusMessage(
-					formatting.appendSibling(combinedMessage.get()),
-					false
-			);
+		static void showMessage(ICommandSender sender, ITextComponent message, TextFormatting color) {
+			Style style = new Style().setColor(color);
+			sender.sendMessage(message.setStyle(style));
+		}
+		
+		static void showMessage(ICommandSender sender, ITextComponent message) {
+			showMessage(sender, message, TextFormatting.DARK_AQUA);
 		}
 		
 		private String localizationPath(String path) {

@@ -9,7 +9,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraftforge.registries.IForgeRegistryEntry;
 
-public class Localization {
+public final class Localization {
 	public static String keyString(String domain, IForgeRegistryEntry entry, String path) {
 		final ResourceLocation location = entry.getRegistryName();
 		assert location != null;
@@ -42,13 +42,25 @@ public class Localization {
 	@SideOnly(Side.CLIENT)
 	public static String localizedQuantity(String domain, String path, int number) {
 		return number == 1
-				? I18n.format(keyString(domain, path + ".singular"))
-				: I18n.format(keyString(domain, path + ".plural"), number);
+			? I18n.format(keyString(domain, path + ".singular"))
+			: I18n.format(keyString(domain, path + ".plural"), number);
 	}
 	
 	public static ITextComponent localizedQuantityComponent(String domain, String path, int number) {
 		return number == 1
-				? new TextComponentTranslation(keyString(domain, path + ".singular"))
-				: new TextComponentTranslation(keyString(domain, path + ".plural"), number);
+			? new TextComponentTranslation(keyString(domain, path + ".singular"))
+			: new TextComponentTranslation(keyString(domain, path + ".plural"), number);
 	}
+	
+	public static String formatBigNumber(int number) {
+		if (number < 1000) {
+			return "" + number;
+		} else if (number < 10_000) {
+			return Math.round(number / 1000F) + "." + Math.round((number % 1000) / 100F) + "k";
+		} else {
+			return Math.round(number / 1000F) + "k";
+		}
+	}
+	
+	private Localization() {}
 }

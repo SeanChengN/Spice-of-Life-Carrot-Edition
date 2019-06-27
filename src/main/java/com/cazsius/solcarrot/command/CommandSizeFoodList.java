@@ -1,31 +1,33 @@
 package com.cazsius.solcarrot.command;
 
-import com.cazsius.solcarrot.lib.ProgressInfo;
+import com.cazsius.solcarrot.tracking.FoodList;
+import com.cazsius.solcarrot.tracking.ProgressInfo;
+import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.text.ITextComponent;
 
 final class CommandSizeFoodList extends CommandFoodList.SubCommand {
-	
 	@Override
 	public String getName() {
 		return "size";
 	}
 	
 	@Override
-	void execute(EntityPlayer player, String[] args) {
-		ProgressInfo progressInfo = ProgressInfo.getProgressInfo(player);
+	void execute(ICommandSender sender, EntityPlayer player, FoodList foodList) {
+		ProgressInfo progressInfo = foodList.getProgressInfo();
 		
 		ITextComponent progressDesc = localizedQuantityComponent("desc.foods_eaten", progressInfo.foodsEaten);
+		showMessage(sender, progressDesc);
 		
 		ITextComponent milestoneDesc = progressInfo.hasReachedMax()
-				? localizedComponent("desc.milestone.max")
-				: localizedComponent("desc.milestone.more", progressInfo.foodsUntilNextMilestone());
-		
-		showMessage(player, progressDesc, milestoneDesc);
+			? localizedComponent("desc.milestone.max")
+			: localizedComponent("desc.milestone.more", progressInfo.foodsUntilNextMilestone());
+		showMessage(sender, milestoneDesc);
 	}
 	
 	@Override
-	public int getRequiredPermissionLevel() {
-		return 0;
+	public boolean checkPermission(MinecraftServer server, ICommandSender sender) {
+		return true;
 	}
 }
